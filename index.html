@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#166534" />
+  <title>ספירת מלאי - בסטה יקנעם</title>
+    <!-- Link to the app manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#007bff">
+
+  <!-- Service worker registration script -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root{
+      --green:#166534; --green2:#15803d; --green-soft:#ecfdf5; --bg:#f4f6f5;
+      --text:#17201b; --muted:#647067; --line:#dce2de; --danger:#b42318;
+      --orange:#b54708; --card:#fff; --shadow:0 2px 12px rgba(24,39,30,.07);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:Arial,"Arial Hebrew",sans-serif;color:var(--text);background:var(--bg)}
+    body{padding-bottom:94px;-webkit-tap-highlight-color:transparent}
+    button,input,textarea{font:inherit}
+    button{cursor:pointer}
+    .topbar{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+    .brand{background:linear-gradient(135deg,#14532d,#166534 55%,#15803d);color:#fff;padding:14px 16px 12px}
+    .brand-row{max-width:760px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand h1{font-size:20px;margin:0;font-weight:800}.brand small{display:block;opacity:.8;margin-top:3px;font-size:12px}
+    .date-wrap{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);padding:7px 9px;border-radius:10px;white-space:nowrap}
+    .date-wrap input{width:122px;color:#fff;background:transparent;border:0;outline:0;font-weight:700;direction:ltr}
+    .date-wrap input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.9}
+    .progress-wrap{max-width:760px;margin:auto;padding:10px 14px 8px;background:#fff}
+    .progress-line{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin-bottom:6px}
+    .progress-line b{color:var(--green)}
+    .progress{height:7px;background:#e8ece9;border-radius:99px;overflow:hidden}.progress>i{display:block;height:100%;background:var(--green2);width:0;transition:width .2s}
+    .tabs{max-width:760px;margin:auto;display:flex;overflow-x:auto;scrollbar-width:none;background:#fff;padding:0 8px}.tabs::-webkit-scrollbar{display:none}
+    .tab{border:0;background:transparent;padding:11px 13px 10px;color:#5f6962;white-space:nowrap;border-bottom:3px solid transparent;font-weight:700;font-size:13px}
+    .tab.active{color:var(--green);border-bottom-color:var(--green)}.tab .badge{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;border-radius:10px;margin-right:5px;background:#eef1ef;font-size:11px}.tab.active .badge{background:#dcfce7}
+    main{max-width:760px;margin:auto;padding:14px}
+    .tools{display:flex;gap:8px;margin-bottom:12px}.search{flex:1;position:relative}.search input{width:100%;height:44px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:0 39px 0 12px;outline:0;font-size:14px}.search input:focus{border-color:#86b998;box-shadow:0 0 0 3px #e3f3e8}.search span{position:absolute;right:13px;top:12px;font-size:18px}
+    .ghost{height:44px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:0 12px;font-weight:700;color:#4b564e}
+    .hint{font-size:12px;color:var(--muted);background:#eef6f0;border:1px solid #d8e9dd;padding:9px 11px;border-radius:10px;margin-bottom:12px;line-height:1.5}
+    .section-title{display:flex;align-items:center;justify-content:space-between;margin:7px 2px 10px}.section-title h2{font-size:16px;margin:0}.section-title small{color:var(--muted)}
+    .items{display:grid;gap:8px}.item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;background:var(--card);border:1px solid #e2e7e3;border-radius:13px;padding:9px 10px;box-shadow:0 1px 5px rgba(31,50,38,.04)}
+    .item.done{border-color:#a8d5b6;background:#fbfffc}.item-left{display:flex;align-items:center;gap:10px;min-width:0}.emoji{width:34px;height:34px;border-radius:10px;background:#f3f6f4;display:grid;place-items:center;font-size:21px;flex:0 0 auto}.item-name{font-weight:750;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.done-mark{font-size:11px;color:var(--green);margin-top:2px;min-height:13px}
+    .qty-controls{direction:ltr;display:flex;align-items:center;gap:6px}.qty{width:76px;height:40px;border:1px solid #cfd6d1;border-radius:10px;text-align:center;font-weight:800;font-size:16px;outline:0;background:#fff}.qty:focus{border-color:#5fa477;box-shadow:0 0 0 3px #e2f2e7}.quick{height:40px;min-width:42px;border:1px solid #d8ddd9;border-radius:10px;background:#f7f8f7;font-weight:800;color:#505a53}.quick.active{background:#fee4e2;border-color:#f7aaa5;color:var(--danger)}
+    .dynamic-grid{display:grid;gap:12px}.panel{background:#fff;border:1px solid var(--line);border-radius:15px;padding:13px;box-shadow:var(--shadow)}.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.panel-head h3{margin:0;font-size:15px}.panel-head small{color:var(--muted)}
+    .dyn-row{display:grid;grid-template-columns:minmax(0,1fr) 78px auto;gap:7px;margin-bottom:7px;direction:rtl}.dyn-row input{height:40px;border:1px solid #d3dad5;border-radius:9px;padding:0 9px;outline:0}.dyn-row .dyn-name{text-align:right}.dyn-row .dyn-qty{text-align:center;font-weight:800;direction:ltr}.dyn-actions{display:flex;direction:ltr;gap:5px}.mini{height:40px;min-width:38px;border:1px solid #d8ddd9;border-radius:9px;background:#f7f8f7;font-weight:800}.mini.missing{min-width:48px;font-size:11px}.mini.danger{color:#a61b12}
+    .add{border:0;background:#eef8f1;color:var(--green);font-weight:800;padding:9px 11px;border-radius:9px}.add:disabled{opacity:.45;cursor:not-allowed}.notes{width:100%;min-height:74px;resize:vertical;border:1px solid #d3dad5;border-radius:10px;padding:9px;outline:0;line-height:1.5}
+    .empty-state{text-align:center;color:var(--muted);padding:32px 10px;background:#fff;border:1px dashed #cbd4ce;border-radius:13px}
+    .bottom{position:fixed;bottom:0;left:0;right:0;z-index:25;background:rgba(255,255,255,.97);border-top:1px solid var(--line);padding:10px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));box-shadow:0 -5px 18px rgba(31,50,38,.07)}
+    .bottom-in{max-width:760px;margin:auto;display:grid;grid-template-columns:1fr auto;gap:9px}.pdf-btn{height:50px;border:0;border-radius:13px;background:var(--green);color:#fff;font-size:16px;font-weight:850;padding:0 20px}.pdf-btn.warn{background:#9a6700}.pdf-btn:disabled{opacity:.6}.missing-pill{min-width:92px;height:50px;border:1px solid var(--line);border-radius:13px;background:#fff;display:grid;place-items:center;text-align:center;font-size:11px;color:var(--muted);padding:0 10px}.missing-pill b{display:block;font-size:15px;color:var(--danger)}
+    .modal-back{position:fixed;inset:0;background:rgba(7,16,10,.58);z-index:50;display:none;align-items:center;justify-content:center;padding:18px}.modal-back.show{display:flex}.modal{background:#fff;border-radius:18px;width:min(440px,100%);max-height:82vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.25)}.modal-head{padding:18px 18px 10px}.modal-head h3{margin:0 0 6px;font-size:18px}.modal-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}.missing-list{padding:4px 12px;overflow:auto}.missing-item{width:100%;border:0;border-bottom:1px solid #edf0ee;background:#fff;padding:10px 7px;text-align:right;color:#9b1c14;font-weight:700}.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:13px 16px 16px}.modal-actions button{height:44px;border:0;border-radius:11px;font-weight:800}.back-btn{background:#edf0ee;color:#354139}.force-btn{background:#166534;color:#fff}.reset-btn{background:#b42318!important;color:#fff}
+    .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;background:#1f2a23;color:#fff;padding:10px 14px;border-radius:10px;z-index:70;font-size:13px;transition:.2s}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    /* A4 PDF template. Dimensions measured from the supplied reference PDF. */
+    .pdf-stage{position:fixed;left:-10000px;top:0;width:210mm;height:297mm;background:#fff;z-index:-1;overflow:hidden}
+    .pdf-sheet{width:210mm;height:297mm;background:#fff;padding-top:3.53mm;box-sizing:border-box;font-family:Arial,"Arial Hebrew",sans-serif;color:#111;direction:ltr}
+    .pdf-table{width:155.7mm;margin:0 auto;border-collapse:collapse;table-layout:fixed;font-size:8.5pt;direction:ltr}
+    .pdf-table col.q{width:17.2mm}.pdf-table col.n{width:34.7mm}
+    .pdf-table td{border:0.25mm solid #b6b6b6;height:5.64mm;padding:0 1.15mm;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:clip;background:#fff}
+    .pdf-table .name{direction:rtl;text-align:right;font-weight:400}.pdf-table .qty{text-align:center;font-weight:400;direction:ltr}.pdf-table .head{font-size:9.5pt;font-weight:700;text-align:center;direction:rtl}.pdf-table .section{font-weight:700;text-align:center;direction:rtl}.pdf-table .notes-label{height:11.28mm;font-size:9pt;font-weight:700;text-align:right;direction:rtl;padding-right:2mm}.pdf-table .notes-cell{height:11.28mm;direction:rtl;text-align:right;white-space:normal;line-height:1.15;padding:1mm 2mm;font-size:7.8pt}
+    body.pdf-preview{background:#ddd;padding:0}.pdf-preview #app,.pdf-preview .bottom{display:none!important}.pdf-preview .pdf-stage{position:static;left:auto;top:auto;z-index:1;margin:auto}
+    @media print{
+      body{background:#fff;padding:0}.topbar,main,.bottom,.modal-back,.toast{display:none!important}.pdf-stage{position:static;left:auto;top:auto;z-index:1;display:block!important}.pdf-sheet{margin:0}
+      @page{size:A4 portrait;margin:0}
+    }
+    @media (min-width:640px){.dynamic-grid{grid-template-columns:1fr 1fr}.panel.extra{grid-column:1/-1}}
+  </style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-row">
+        <div><h1>🥬 ספירת מלאי - בסטה יקנעם</h1><small>מילוי מהיר בסוף היום • PDF בפורמט הקבוע</small></div>
+        <label class="date-wrap"><span>📅</span><input id="dateInput" type="date" /></label>
+      </div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-line"><span>התקדמות בספירה</span><span><b id="filledCount">0</b>/<span id="requiredCount">0</span> פריטים • <span id="missingText">חסרים 0</span></span></div>
+      <div class="progress"><i id="progressBar"></i></div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+
+  <main>
+    <div class="tools">
+      <div class="search"><span>🔎</span><input id="searchInput" type="search" placeholder="חיפוש פריט..." autocomplete="off" /></div>
+      <button class="ghost" id="resetButton">איפוס</button>
+    </div>
+    <div class="hint">💡 הקלד כמות ולחץ <b>Enter</b> כדי לעבור לפריט הבא. אם אין מלאי, לחץ על <b>-</b>. פריט שמולא מסומן בירוק כדי שלא יישכח.</div>
+    <section id="content"></section>
+  </main>
+</div>
+
+<div class="bottom">
+  <div class="bottom-in">
+    <button id="pdfButton" class="pdf-btn">📄 הפק PDF ושתף</button>
+    <div class="missing-pill"><span>לפני הפקה<b id="bottomMissing">0 חסרים</b></span></div>
+  </div>
+</div>
+
+<div class="modal-back" id="missingModal">
+  <div class="modal">
+    <div class="modal-head"><h3>⚠️ נשארו פריטים שלא מולאו</h3><p>כדי שלא תפספס שום דבר, הנה כל הפריטים הריקים. אפשר ללחוץ על פריט כדי לעבור אליו.</p></div>
+    <div class="missing-list" id="missingList"></div>
+    <div class="modal-actions"><button class="back-btn" id="modalBack">חזור למילוי</button><button class="force-btn" id="forcePdf">הפק בכל זאת</button></div>
+  </div>
+</div>
+
+<div class="modal-back" id="resetModal">
+  <div class="modal">
+    <div class="modal-head"><h3>לאפס את הספירה?</h3><p>כל הכמויות, התפוחים, ירק ליקנעם וההערות של היום יימחקו.</p></div>
+    <div class="modal-actions"><button class="back-btn" id="cancelReset">ביטול</button><button class="reset-btn" id="confirmReset">כן, אפס הכל</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Kept off-screen, but fully rendered so html2canvas can create a pixel-accurate one-page PDF. -->
+<div class="pdf-stage" id="pdfStage" aria-hidden="true">
+  <div class="pdf-sheet" id="pdfSheet">
+    <table class="pdf-table" id="pdfTable">
+      <colgroup>
+        <col class="q"><col class="n"><col class="q"><col class="n"><col class="q"><col class="n">
+      </colgroup>
+      <tbody id="pdfBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const rightColumn = [
+    "אבוקדו","אבטיח","אגס","אגס אדום","תפוח אגס","אוכמניות","אנונה","אננס","אפרסמון","אפרסק","ארטישוק","ארטישוק ירושלמי","אשכולית צהובה","אשכולית אדומה","בטטה","במיה","בננה","בצל יבש","בצל ירוק","בצל סגול","גויאבה","גזר","דובדבנים","דלעת","דלעת ספגטים","דלעת יפנית","דלעת ערמונים","דלורית","חבוש","חסה","חסה זורע","חסה עגולה","חציל","חציל בלדי","כרוב אדום","כרוב לבן","כרובית","לימון","ליצ׳י","לפת","מיני מלפפון ארוז","מיני מלפפון תפזורת","מלון","מלון ספרדי","מלפפון","מנגו","מנדרינה","משמש"
+  ];
+  const middleColumn = [
+    "נקטרינה","סברס","סלק אדום","עגבניה","עגבניות תמר","עגבניות מגי","עגבניות שרי","שרי תמר","שרי כתום","שרי צהוב","שרי שוקולד","ענבים ירוקים","ענבים אדומים","ענבים שחורים","ערמונים","פאפיה","פול","פטאיה","פטריות","פלפל אדום","פלפל כתום","פלפל צהוב","פלפל ירוק","פלפל נהריה","פלפל חריף","פלפל ארוך צהוב","פלפל ארוך כתום","פלפל ארוך אדום","פלפל במגש","פמולית","פמלה","פסיפלורה","צנון","צנונית משקל","צנונית ארוז","קולורבי","קוקוס","קיווי","קיווי זהב","זוקיני","קישוא","קישוא עגול","רימון","שום ארוז","שום משקל","שומר","שזיף אדום","שזיף ירוק"
+  ];
+  const leftFixedTop = ["שסק","שעועית","שעועית רחבה","תאנים","תות שדה","תירס","תמר צהוב","תפוח אדמה","תפו״א אדום","תפו״א קטן לבן","תפו״א קטן אדום","תפו״א גורמה","תפוז","תפוז רשת"];
+  const leftFixedHerbs = ["בזיליקום","ברוקולי","כוסברה","פטרוזיליה","שמיר","נענע","סלק עלים","סלרי עלים","פורי","שורש סלרי","שורש פטרוזיליה","תרד"];
+  const fixedNames = [...rightColumn, ...middleColumn, ...leftFixedTop, ...leftFixedHerbs];
+
+  const fruitSet = new Set([
+    "אבוקדו","אבטיח","אגס","אגס אדום","תפוח אגס","אוכמניות","אנונה","אננס","אפרסמון","אפרסק","אשכולית צהובה","אשכולית אדומה","בננה","גויאבה","דובדבנים","חבוש","לימון","ליצ׳י","מלון","מלון ספרדי","מנגו","מנדרינה","משמש","נקטרינה","סברס","ענבים ירוקים","ענבים אדומים","ענבים שחורים","ערמונים","פאפיה","פטאיה","פמולית","פמלה","פסיפלורה","קוקוס","קיווי","קיווי זהב","רימון","שזיף אדום","שזיף ירוק","שסק","תאנים","תות שדה","תמר צהוב","תפוז","תפוז רשת"
+  ]);
+  const herbSet = new Set(["בצל ירוק","חסה","חסה זורע","חסה עגולה","בזיליקום","ברוקולי","כוסברה","פטרוזיליה","שמיר","נענע","סלק עלים","סלרי עלים","פורי","שורש סלרי","שורש פטרוזיליה","תרד"]);
+
+  const emojiMap = {
+    "אבוקדו":"🥑","אבטיח":"🍉","אגס":"🍐","אגס אדום":"🍐","תפוח אגס":"🍏","אוכמניות":"🫐","אננס":"🍍","אפרסק":"🍑","בטטה":"🍠","בננה":"🍌","בצל יבש":"🧅","בצל ירוק":"🌱","בצל סגול":"🧅","גזר":"🥕","דובדבנים":"🍒","דלעת":"🎃","דלעת ספגטים":"🎃","דלעת יפנית":"🎃","דלעת ערמונים":"🎃","דלורית":"🎃","חסה":"🥬","חסה זורע":"🥬","חסה עגולה":"🥬","חציל":"🍆","חציל בלדי":"🍆","כרוב אדום":"🥬","כרוב לבן":"🥬","כרובית":"🥦","לימון":"🍋","מיני מלפפון ארוז":"🥒","מיני מלפפון תפזורת":"🥒","מלון":"🍈","מלון ספרדי":"🍈","מלפפון":"🥒","מנגו":"🥭","מנדרינה":"🍊","נקטרינה":"🍑","סברס":"🌵","עגבניה":"🍅","עגבניות תמר":"🍅","עגבניות מגי":"🍅","עגבניות שרי":"🍅","שרי תמר":"🍅","שרי כתום":"🍅","שרי צהוב":"🍅","שרי שוקולד":"🍅","ענבים ירוקים":"🍇","ענבים אדומים":"🍇","ענבים שחורים":"🍇","ערמונים":"🌰","פאפיה":"🥭","פול":"🫘","פטריות":"🍄","פלפל אדום":"🌶️","פלפל כתום":"🌶️","פלפל צהוב":"🌶️","פלפל ירוק":"🌶️","פלפל נהריה":"🌶️","פלפל חריף":"🌶️","פלפל ארוך צהוב":"🌶️","פלפל ארוך כתום":"🌶️","פלפל ארוך אדום":"🌶️","פלפל במגש":"🌶️","קוקוס":"🥥","קיווי":"🥝","קיווי זהב":"🥝","זוקיני":"🥒","קישוא":"🥒","קישוא עגול":"🥒","רימון":"🍎","שום ארוז":"🧄","שום משקל":"🧄","שזיף אדום":"🍑","שזיף ירוק":"🍑","שסק":"🍑","שעועית":"🫘","שעועית רחבה":"🫘","תאנים":"🫐","תות שדה":"🍓","תירס":"🌽","תפוח אדמה":"🥔","תפו״א אדום":"🥔","תפו״א קטן לבן":"🥔","תפו״א קטן אדום":"🥔","תפו״א גורמה":"🥔","תפוז":"🍊","תפוז רשת":"🍊","בזיליקום":"🌿","ברוקולי":"🥦","כוסברה":"🌿","פטרוזיליה":"🌿","שמיר":"🌿","נענע":"🌿","סלק עלים":"🥬","סלרי עלים":"🥬","תרד":"🥬"
+  };
+
+  const tabs = [
+    {id:'fruits', label:'🍎 פירות'},
+    {id:'vegetables', label:'🥕 ירקות'},
+    {id:'herbs', label:'🌿 עלים ועשבי תיבול'},
+    {id:'dynamic', label:'🍏 תפוחים / יקנעם'},
+    {id:'extra', label:'➕ נוספים'}
+  ];
+
+  const state = {
+    activeTab:'fruits', search:'', date:todayISO(),
+    qty:Object.fromEntries(fixedNames.map(n => [n,''])),
+    apples:[{name:'',qty:''}], yokneam:[{name:'',qty:''}], extras:[{name:'',qty:''}], notes:''
+  };
+
+  const els = {
+    tabs:document.getElementById('tabs'), content:document.getElementById('content'), search:document.getElementById('searchInput'),
+    date:document.getElementById('dateInput'), filled:document.getElementById('filledCount'), required:document.getElementById('requiredCount'),
+    missingText:document.getElementById('missingText'), progress:document.getElementById('progressBar'), pdfBtn:document.getElementById('pdfButton'),
+    bottomMissing:document.getElementById('bottomMissing'), missingModal:document.getElementById('missingModal'), missingList:document.getElementById('missingList'),
+    pdfBody:document.getElementById('pdfBody'), toast:document.getElementById('toast'), resetModal:document.getElementById('resetModal')
+  };
+
+  function todayISO(){ const d=new Date(); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+  function formatDate(iso){ const p=(iso||'').split('-'); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:''; }
+  function catOf(name){ return herbSet.has(name)?'herbs':fruitSet.has(name)?'fruits':'vegetables'; }
+  function isFilled(v){ return v!==null && v!==undefined && String(v).trim()!==''; }
+  function cleanQty(v){ return String(v??'').trim().replace(',', '.'); }
+  function storageKey(){ return 'bastaInventoryV3'; }
+  function save(){ try{ localStorage.setItem(storageKey(), JSON.stringify(state)); }catch(e){} }
+  function restore(){
+    try{
+      const raw=localStorage.getItem(storageKey()); if(!raw) return;
+      const s=JSON.parse(raw); if(!s || typeof s!=='object') return;
+      state.activeTab=s.activeTab||state.activeTab; state.search=''; state.date=s.date||state.date; state.notes=s.notes||'';
+      if(s.qty) fixedNames.forEach(n=>{ if(Object.prototype.hasOwnProperty.call(s.qty,n)) state.qty[n]=String(s.qty[n]??''); });
+      if(Array.isArray(s.apples)) state.apples=s.apples.slice(0,8).map(x=>({name:String(x.name||''),qty:String(x.qty??'')}));
+      if(Array.isArray(s.yokneam)) state.yokneam=s.yokneam.slice(0,8).map(x=>({name:String(x.name||''),qty:String(x.qty??'')}));
+      if(Array.isArray(s.extras)) state.extras=s.extras.slice(0,8).map(x=>({name:String(x.name||''),qty:String(x.qty??'')}));
+      if(!state.apples.length) state.apples=[{name:'',qty:''}]; if(!state.yokneam.length) state.yokneam=[{name:'',qty:''}]; if(!state.extras.length) state.extras=[{name:'',qty:''}];
+    }catch(e){}
+  }
+
+  function requiredFixed(){ return fixedNames.length; }
+  function fixedMissing(){ return fixedNames.filter(n=>!isFilled(state.qty[n])); }
+  function dynamicIssues(){
+    const issues=[];
+    state.apples.forEach((r,i)=>{ if(r.name.trim() && !isFilled(r.qty)) issues.push({type:'dynamic',tab:'dynamic',kind:'apple',index:i,label:`תפוח: ${r.name}`}); else if(isFilled(r.qty)&&!r.name.trim()) issues.push({type:'dynamic',tab:'dynamic',kind:'apple',index:i,label:`תפוח #${i+1} - חסר שם`}); });
+    state.yokneam.forEach((r,i)=>{ if(r.name.trim() && !isFilled(r.qty)) issues.push({type:'dynamic',tab:'dynamic',kind:'yok',index:i,label:`ירק ליקנעם: ${r.name}`}); else if(isFilled(r.qty)&&!r.name.trim()) issues.push({type:'dynamic',tab:'dynamic',kind:'yok',index:i,label:`ירק ליקנעם #${i+1} - חסר שם`}); });
+    state.extras.forEach((r,i)=>{ if(r.name.trim() && !isFilled(r.qty)) issues.push({type:'dynamic',tab:'extra',kind:'extra',index:i,label:`פריט נוסף: ${r.name}`}); else if(isFilled(r.qty)&&!r.name.trim()) issues.push({type:'dynamic',tab:'extra',kind:'extra',index:i,label:`פריט נוסף #${i+1} - חסר שם`}); });
+    return issues;
+  }
+  function allMissing(){ return [...fixedMissing().map(n=>({type:'fixed',tab:catOf(n),name:n,label:n})), ...dynamicIssues()]; }
+  function completedFixed(){ return requiredFixed()-fixedMissing().length; }
+
+  function renderTabs(){
+    els.tabs.innerHTML=tabs.map(t=>{
+      let miss=0;
+      if(['fruits','vegetables','herbs'].includes(t.id)) miss=fixedNames.filter(n=>catOf(n)===t.id && !isFilled(state.qty[n])).length;
+      if(t.id==='dynamic') miss=dynamicIssues().filter(x=>x.tab==='dynamic').length;
+      if(t.id==='extra') miss=dynamicIssues().filter(x=>x.tab==='extra').length;
+      return `<button class="tab ${state.activeTab===t.id?'active':''}" data-tab="${t.id}">${t.label}${miss?`<span class="badge">${miss}</span>`:''}</button>`;
+    }).join('');
+    els.tabs.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ state.activeTab=b.dataset.tab; state.search=''; els.search.value=''; save(); render(); });
+  }
+
+  function renderFixed(){
+    const term=state.search.trim();
+    const arr=fixedNames.filter(n=>catOf(n)===state.activeTab && (!term || n.includes(term)));
+    const title=tabs.find(t=>t.id===state.activeTab)?.label||'';
+    if(!arr.length) return `<div class="empty-state">לא נמצאו פריטים מתאימים.</div>`;
+    return `<div class="section-title"><h2>${title}</h2><small>${arr.length} פריטים</small></div><div class="items">${arr.map(n=>itemHtml(n)).join('')}</div>`;
+  }
+  function itemHtml(name){
+    const v=state.qty[name]; const done=isFilled(v);
+    return `<div class="item ${done?'done':''}" data-item="${esc(name)}"><div class="item-left"><span class="emoji">${emojiMap[name]||'🛒'}</span><div><div class="item-name">${esc(name)}</div><div class="done-mark">${done?'✓ מולא':''}</div></div></div><div class="qty-controls"><button class="quick ${v==='-'?'active':''}" data-minus="${esc(name)}">-</button><input class="qty" data-qty="${esc(name)}" inputmode="decimal" autocomplete="off" placeholder="כמות" value="${escAttr(v)}"></div></div>`;
+  }
+
+  function dynRowHtml(kind,row,i,allowMissing){
+    const ph=kind==='apple'?'סוג תפוח...':kind==='yok'?'שם ירק...':'שם פריט...';
+    return `<div class="dyn-row"><input class="dyn-name" data-dyn-name="${kind}:${i}" placeholder="${ph}" value="${escAttr(row.name)}"><input class="dyn-qty" data-dyn-qty="${kind}:${i}" inputmode="decimal" placeholder="כמות" value="${escAttr(row.qty)}"><div class="dyn-actions"><button class="mini" data-dyn-minus="${kind}:${i}">-</button>${allowMissing?`<button class="mini missing" data-dyn-missing="${kind}:${i}">חסר</button>`:''}<button class="mini danger" data-remove="${kind}:${i}">×</button></div></div>`;
+  }
+  function panel(kind,title,emoji,rows,max,allowMissing=false){
+    return `<div class="panel"><div class="panel-head"><h3>${emoji} ${title}</h3><small>${rows.filter(r=>r.name.trim()).length}/${max}</small></div>${rows.map((r,i)=>dynRowHtml(kind,r,i,allowMissing)).join('')}<button class="add" data-add="${kind}" ${rows.length>=max?'disabled':''}>+ הוסף שורה</button></div>`;
+  }
+  function renderDynamic(){ return `<div class="section-title"><h2>תפוחים וירק ליקנעם</h2><small>עד 8 שורות לכל אזור ב-PDF</small></div><div class="dynamic-grid">${panel('apple','תפוחים','🍏',state.apples,8,false)}${panel('yok','ירק ליקנעם','🥬',state.yokneam,8,true)}</div>`; }
+  function renderExtra(){ return `<div class="section-title"><h2>פריטים נוספים והערות</h2><small>יופיעו בשורת הערות/תוספות</small></div><div class="dynamic-grid"><div class="panel extra"><div class="panel-head"><h3>➕ פריטים נוספים</h3><small>שם + כמות/מצב</small></div>${state.extras.map((r,i)=>dynRowHtml('extra',r,i,true)).join('')}<button class="add" data-add="extra" ${state.extras.length>=8?'disabled':''}>+ הוסף פריט</button></div><div class="panel extra"><div class="panel-head"><h3>📝 הערות חופשיות</h3><small>אופציונלי</small></div><textarea class="notes" id="notesInput" placeholder="הערות נוספות...">${esc(state.notes)}</textarea></div></div>`; }
+
+  function bindContent(){
+    document.querySelectorAll('[data-qty]').forEach(inp=>{
+      inp.addEventListener('input',()=>{ state.qty[inp.dataset.qty]=cleanQty(inp.value); save(); updateProgressOnly(); updateCard(inp.dataset.qty); });
+      inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault(); focusNextFixed(inp.dataset.qty);} });
+    });
+    document.querySelectorAll('[data-minus]').forEach(btn=>btn.onclick=()=>{ const n=btn.dataset.minus; state.qty[n]=state.qty[n]==='-'?'':'-'; save(); render(); setTimeout(()=>focusInputByName(n),20); });
+    document.querySelectorAll('[data-add]').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.add, arr=arrFor(k); if(arr.length<8){arr.push({name:'',qty:''});save();render();setTimeout(()=>focusDyn(k,arr.length-1,'name'),20);} });
+    document.querySelectorAll('[data-remove]').forEach(btn=>btn.onclick=()=>{ const [k,i]=btn.dataset.remove.split(':'); const arr=arrFor(k); if(arr.length===1){arr[0]={name:'',qty:''};} else arr.splice(Number(i),1); save();render(); });
+    document.querySelectorAll('[data-dyn-name]').forEach(inp=>inp.oninput=()=>{ const [k,i]=inp.dataset.dynName.split(':'); arrFor(k)[Number(i)].name=inp.value;save();updateProgressOnly(); });
+    document.querySelectorAll('[data-dyn-qty]').forEach(inp=>{ inp.oninput=()=>{const [k,i]=inp.dataset.dynQty.split(':');arrFor(k)[Number(i)].qty=cleanQty(inp.value);save();updateProgressOnly();}; inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault(); const [k,i]=inp.dataset.dynQty.split(':');focusDynNext(k,Number(i));}}; });
+    document.querySelectorAll('[data-dyn-minus]').forEach(btn=>btn.onclick=()=>{ const [k,i]=btn.dataset.dynMinus.split(':'); const r=arrFor(k)[Number(i)]; r.qty=r.qty==='-'?'':'-';save();render(); });
+    document.querySelectorAll('[data-dyn-missing]').forEach(btn=>btn.onclick=()=>{ const [k,i]=btn.dataset.dynMissing.split(':'); const r=arrFor(k)[Number(i)]; r.qty=r.qty==='חסר'?'':'חסר';save();render(); });
+    const notes=document.getElementById('notesInput'); if(notes) notes.oninput=()=>{state.notes=notes.value;save();};
+  }
+  function arrFor(k){ return k==='apple'?state.apples:k==='yok'?state.yokneam:state.extras; }
+
+  function render(){
+    renderTabs();
+    els.content.innerHTML=['fruits','vegetables','herbs'].includes(state.activeTab)?renderFixed():state.activeTab==='dynamic'?renderDynamic():renderExtra();
+    bindContent(); updateProgressOnly(); renderPdfTemplate();
+  }
+  function updateCard(name){
+    const el=[...document.querySelectorAll('[data-item]')].find(x=>x.dataset.item===name); if(!el) return;
+    const done=isFilled(state.qty[name]); el.classList.toggle('done',done); const mark=el.querySelector('.done-mark'); if(mark) mark.textContent=done?'✓ מולא':'';
+  }
+  function updateProgressOnly(){
+    const done=completedFixed(), total=requiredFixed(), missing=allMissing();
+    els.filled.textContent=done; els.required.textContent=total; els.progress.style.width=`${Math.round(done/total*100)}%`;
+    els.missingText.textContent=missing.length?`חסרים ${missing.length}`:'הכל מולא ✓'; els.bottomMissing.textContent=missing.length?`${missing.length} חסרים`:'הכל מלא ✓';
+    els.bottomMissing.style.color=missing.length?'var(--danger)':'var(--green)'; els.pdfBtn.classList.toggle('warn',missing.length>0); renderTabs();
+  }
+
+  function focusInputByName(name){ const inp=[...document.querySelectorAll('[data-qty]')].find(x=>x.dataset.qty===name); if(inp){inp.focus();inp.select();} }
+  function focusNextFixed(name){
+    const arr=fixedNames.filter(n=>catOf(n)===state.activeTab && (!state.search.trim()||n.includes(state.search.trim()))); const idx=arr.indexOf(name); if(idx>=0&&idx<arr.length-1) focusInputByName(arr[idx+1]);
+    else { const cats=['fruits','vegetables','herbs']; const ci=cats.indexOf(state.activeTab); if(ci>=0&&ci<cats.length-1){state.activeTab=cats[ci+1];state.search='';els.search.value='';render();setTimeout(()=>{const first=document.querySelector('[data-qty]');if(first){first.focus();first.select();}},20);} }
+  }
+  function focusDyn(k,i,field){ const sel=field==='name'?`[data-dyn-name="${k}:${i}"]`:`[data-dyn-qty="${k}:${i}"]`; const el=document.querySelector(sel); if(el){el.focus();el.select?.();} }
+  function focusDynNext(k,i){ const arr=arrFor(k); if(i<arr.length-1) focusDyn(k,i+1,'name'); }
+
+  function renderPdfTemplate(){
+    const rows=[];
+    rows.push(pdfRow('',formatDate(state.date),'','אחים דוד יקנעם','','בוקר טוב ליפתח',true));
+    const leftRows=[];
+    leftFixedTop.forEach(n=>leftRows.push({name:n,qty:state.qty[n]}));
+    leftRows.push({name:'',qty:''});
+    leftFixedHerbs.forEach(n=>leftRows.push({name:n,qty:state.qty[n]}));
+    leftRows.push({name:'',qty:''});
+    leftRows.push({section:'תפוחים'});
+    for(let i=0;i<8;i++){ const r=state.apples[i]||{name:'',qty:''}; leftRows.push({name:r.name,qty:r.qty}); }
+    leftRows.push({section:'ירק ליקנעם'});
+    for(let i=0;i<8;i++){ const r=state.yokneam[i]||{name:'',qty:''}; leftRows.push({name:r.name,qty:r.qty}); }
+    leftRows.push({name:'',qty:''},{name:'',qty:''});
+
+    // 48 data rows, matching the supplied PDF exactly.
+    for(let i=0;i<48;i++){
+      const L=leftRows[i]||{name:'',qty:''}, M={name:middleColumn[i],qty:state.qty[middleColumn[i]]}, R={name:rightColumn[i],qty:state.qty[rightColumn[i]]};
+      rows.push(pdfDataRow(L,M,R));
+    }
+    let noteParts=state.extras.filter(r=>r.name.trim()||isFilled(r.qty)).map(r=>`${r.name.trim()}${isFilled(r.qty)?' '+r.qty:''}`.trim());
+    if(state.notes.trim()) noteParts.push(state.notes.trim());
+    const noteText=noteParts.join(' | ');
+    rows.push(`<tr><td colspan="5" class="notes-cell">${esc(noteText)}</td><td class="notes-label">הערות/תוספות:</td></tr>`);
+    els.pdfBody.innerHTML=rows.join('');
+  }
+  function pdfRow(lq,ln,mq,mn,rq,rn,head=false){ const c=head?' head':''; return `<tr><td class="qty${c}">${esc(lq)}</td><td class="name${c}">${esc(ln)}</td><td class="qty${c}">${esc(mq)}</td><td class="name${c}">${esc(mn)}</td><td class="qty${c}">${esc(rq)}</td><td class="name${c}">${esc(rn)}</td></tr>`; }
+  function pairCells(o){ if(o.section) return `<td class="qty"></td><td class="name section">${esc(o.section)}</td>`; return `<td class="qty">${esc(o.qty||'')}</td><td class="name">${esc(o.name||'')}</td>`; }
+  function pdfDataRow(L,M,R){ return `<tr>${pairCells(L)}${pairCells(M)}${pairCells(R)}</tr>`; }
+
+  function showMissing(){
+    const miss=allMissing(); els.missingList.innerHTML=miss.map((m,i)=>`<button class="missing-item" data-miss="${i}">• ${esc(m.label)}</button>`).join('');
+    els.missingList.querySelectorAll('[data-miss]').forEach(b=>b.onclick=()=>{ const m=miss[Number(b.dataset.miss)]; els.missingModal.classList.remove('show'); state.activeTab=m.tab; state.search='';els.search.value='';render(); setTimeout(()=>{ if(m.type==='fixed') focusInputByName(m.name); else focusDyn(m.kind,m.index,m.kind==='apple'||m.kind==='yok'||m.kind==='extra'?'name':'qty'); },30); });
+    els.missingModal.classList.add('show');
+  }
+
+  async function generatePdf(){
+    renderPdfTemplate(); els.pdfBtn.disabled=true; const old=els.pdfBtn.textContent; els.pdfBtn.textContent='מייצר PDF...';
+    try{
+      if(!window.html2canvas || !window.jspdf){ window.print(); toast('נפתחה תצוגת הדפסה. בחר שמירה כ-PDF.'); return; }
+      await document.fonts?.ready;
+      const canvas=await html2canvas(document.getElementById('pdfSheet'),{scale:2.35,backgroundColor:'#ffffff',useCORS:true,logging:false,width:document.getElementById('pdfSheet').scrollWidth,height:document.getElementById('pdfSheet').scrollHeight});
+      const img=canvas.toDataURL('image/png'); const {jsPDF}=window.jspdf; const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4',compress:true});
+      doc.addImage(img,'PNG',0,0,210,297,undefined,'FAST');
+      const blob=doc.output('blob'); const filename=`בסטה_${formatDate(state.date).replaceAll('/','-')}.pdf`; const file=new File([blob],filename,{type:'application/pdf'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'מלאי בסטה יקנעם'}); }
+      else { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500); toast('ה-PDF מוכן.'); }
+    }catch(e){ console.error(e); if(e?.name!=='AbortError'){ toast('לא הצלחתי לשתף ישירות. נפתחת תצוגת הדפסה.'); window.print(); } }
+    finally{ els.pdfBtn.disabled=false;els.pdfBtn.textContent=old; }
+  }
+
+  function resetAll(){ fixedNames.forEach(n=>state.qty[n]=''); state.apples=[{name:'',qty:''}];state.yokneam=[{name:'',qty:''}];state.extras=[{name:'',qty:''}];state.notes='';state.date=todayISO();state.activeTab='fruits';state.search='';els.search.value='';els.date.value=state.date;save();render();els.resetModal.classList.remove('show');toast('הספירה אופסה.'); }
+  function toast(msg){ els.toast.textContent=msg;els.toast.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>els.toast.classList.remove('show'),2200); }
+  function esc(s){ return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+  function escAttr(s){ return esc(s); }
+
+  restore(); els.date.value=state.date;
+  els.search.addEventListener('input',()=>{state.search=els.search.value;render();});
+  els.date.addEventListener('change',()=>{state.date=els.date.value||todayISO();save();renderPdfTemplate();});
+  els.pdfBtn.onclick=()=>allMissing().length?showMissing():generatePdf();
+  document.getElementById('modalBack').onclick=()=>els.missingModal.classList.remove('show');
+  document.getElementById('forcePdf').onclick=()=>{els.missingModal.classList.remove('show');generatePdf();};
+  document.getElementById('resetButton').onclick=()=>els.resetModal.classList.add('show');
+  document.getElementById('cancelReset').onclick=()=>els.resetModal.classList.remove('show');
+  document.getElementById('confirmReset').onclick=resetAll;
+  [els.missingModal,els.resetModal].forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('show');}));
+  if(new URLSearchParams(location.search).has('preview')) document.body.classList.add('pdf-preview');
+  render();
+})();
+</script>
+</body>
+</html>
