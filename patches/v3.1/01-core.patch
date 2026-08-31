@@ -1,0 +1,122 @@
+--- a/package.json
++++ b/package.json
+@@ -1,22 +1,27 @@
+ {
+   "name": "supermarket-management-platform",
+-  "version": "3.0.0",
++  "version": "3.1.0",
+   "private": true,
+-  "description": "Multi-tenant supermarket management app for Web, Android and iOS",
++  "description": "Native-first multi-tenant supermarket management app for Android and iOS",
+   "scripts": {
+     "android:add": "npx cap add android",
+     "ios:add": "npx cap add ios",
+     "sync": "npx cap sync",
+     "android:open": "npx cap open android",
+     "ios:open": "npx cap open ios",
+-    "android:debug": "cd android && ./gradlew assembleDebug"
++    "android:debug": "cd android && ./gradlew assembleDebug",
++    "postinstall": "node scripts/copy-vendor.mjs"
+   },
+   "dependencies": {
+     "@capacitor/android": "^8.0.0",
+     "@capacitor/core": "^8.0.0",
+-    "@capacitor/ios": "^8.0.0"
++    "@capacitor/ios": "^8.0.0",
++    "@supabase/supabase-js": "^2.57.4",
++    "html2canvas": "^1.4.1",
++    "jspdf": "^2.5.2",
++    "html5-qrcode": "^2.3.8"
+   },
+   "devDependencies": {
+     "@capacitor/cli": "^8.0.0"
+   }
+-}
++}
+\ No newline at end of file
+--- a/capacitor.config.json
++++ b/capacitor.config.json
+@@ -1,8 +1,13 @@
+ {
+   "appId": "il.supermarket.management",
+-  "appName": "ניהול סופר",
++  "appName": "Supermarket OS",
+   "webDir": "www",
+   "backgroundColor": "#071f15",
+-  "android": {"allowMixedContent": false},
+-  "ios": {"contentInset": "automatic", "preferredContentMode": "mobile"}
+-}
++  "android": {
++    "allowMixedContent": false
++  },
++  "ios": {
++    "contentInset": "automatic",
++    "preferredContentMode": "mobile"
++  }
++}
+\ No newline at end of file
+--- a/www/index.html
++++ b/www/index.html
+@@ -6,13 +6,13 @@
+   <meta name="apple-mobile-web-app-capable" content="yes" />
+   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+   <meta name="theme-color" content="#12633b" />
+-  <meta name="description" content="מערכת ניהול הסופר - אחים דוד יקנעם" />
++  <meta name="description" content="Supermarket OS - מערכת ניהול סופרים" />
+   <link rel="manifest" href="manifest.json" />
+   <link rel="apple-touch-icon" href="icon.png" />
+-  <title>ניהול סופר</title>
+-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+-  <link rel="stylesheet" href="management.css?v=3.0.0" />
++  <title>Supermarket OS</title>
++  <script defer src="vendor/html2canvas.min.js"></script>
++  <script defer src="vendor/jspdf.umd.min.js"></script>
++  <link rel="stylesheet" href="management.css?v=3.1.0" />
+   <style>
+     :root{
+       --green:#166534; --green2:#15803d; --green-soft:#ecfdf5; --bg:#f4f6f5;
+@@ -625,12 +625,20 @@
+   window.addEventListener('focus',checkDayOnResume);
+   armDailyReset();
+   if(new URLSearchParams(location.search).has('preview')) document.body.classList.add('pdf-preview');
+-  render();
+-  if(autoResetOnLoad) setTimeout(()=>toast('נפתחה רשימה חדשה להיום.'),250);
++  window.__inventoryAppStarted=false;
++  window.__ensureInventoryRendered=()=>{
++    if(window.__inventoryAppStarted)return;
++    window.__inventoryAppStarted=true;
++    render();
++    if(autoResetOnLoad) setTimeout(()=>toast('נפתחה רשימה חדשה להיום.'),250);
++  };
++  const nativeRuntime=!!window.Capacitor || location.protocol==='capacitor:' || location.hostname==='localhost';
++  if(nativeRuntime){const legacyApp=document.getElementById('app');if(legacyApp)legacyApp.style.display='none';}
++  else window.__ensureInventoryRendered();
+ })();
+ </script>
+-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" integrity="sha512-r6rDA7W6ZeQhvl8S7yRVQUKVHdexq+GAlNkNNqVC7YyIV+NwqCTJe2hDWCiffTyRNOeGEzRRJ9ifvRm/HCzGYg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+-<script defer src="management.js?v=3.0.0"></script>
++<script defer src="vendor/html5-qrcode.min.js"></script>
++<script src="vendor/supabase.js"></script>
++<script defer src="management.js?v=3.1.0"></script>
+ </body>
+ </html>
+--- a/scripts/copy-vendor.mjs
++++ b/scripts/copy-vendor.mjs
+@@ -0,0 +1,15 @@
++import fs from 'node:fs';
++import path from 'node:path';
++const out=path.resolve('www/vendor');
++fs.mkdirSync(out,{recursive:true});
++const copies=[
++  ['node_modules/@supabase/supabase-js/dist/umd/supabase.js','supabase.js'],
++  ['node_modules/html2canvas/dist/html2canvas.min.js','html2canvas.min.js'],
++  ['node_modules/jspdf/dist/jspdf.umd.min.js','jspdf.umd.min.js'],
++  ['node_modules/html5-qrcode/html5-qrcode.min.js','html5-qrcode.min.js']
++];
++for(const [src,name] of copies){
++  if(!fs.existsSync(src)) throw new Error(`Missing vendor file: ${src}`);
++  fs.copyFileSync(src,path.join(out,name));
++}
++console.log('Native vendor assets copied into www/vendor');
