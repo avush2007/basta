@@ -1,0 +1,164 @@
+--- a/www/management.js
++++ b/www/management.js
+@@ -9,13 +9,21 @@
+   const BUSINESS_NAME = 'הסופר';
+   const APP_NAME = 'ניהול סופר';
+   let WHATSAPP_BUSINESS_NAME = 'הסופר';
+-  const APP_VERSION = '3.0.0';
++  const APP_VERSION = '3.1.0';
+   const VAPID_PUBLIC_KEY = 'BB0-WFAJvT47CC5k79cL23zMpYgSbv5ZfWe9NhM7ADKZNJ4MJP3ExhUoSmvcc3epiJkraaqWDYabUhBiqXkNAnQ';
+   const UPDATE_BUCKET = 'app-updates';
+   const LATEST_MANIFEST_URL = `${SUPABASE_URL}/storage/v1/object/public/${UPDATE_BUCKET}/latest.json`;
+ 
+   const root = document.getElementById('managementRoot');
+   if (!root) return;
++  const IS_NATIVE_APP = !!window.Capacitor || location.protocol==='capacitor:' || location.hostname==='localhost';
++  if(IS_NATIVE_APP){
++    document.documentElement.classList.add('mg-native-runtime');
++    document.body.classList.add('mg-native-app');
++  }
++  const nativeCacheKey = suffix => `supermarketOS:v3.1:${business?.id||'global'}:${suffix}`;
++  const nativeCacheGet = suffix => { if(!IS_NATIVE_APP)return null; try{const raw=localStorage.getItem(nativeCacheKey(suffix));if(!raw)return null;const x=JSON.parse(raw);return x&&x.data!==undefined?x:null;}catch(_e){return null;} };
++  const nativeCacheSet = (suffix,data) => { if(!IS_NATIVE_APP)return; try{localStorage.setItem(nativeCacheKey(suffix),JSON.stringify({at:Date.now(),data}));}catch(_e){} };
+   const syncManagementOverlay = () => document.documentElement.classList.toggle('mg-overlay-active', !root.classList.contains('hidden'));
+   new MutationObserver(syncManagementOverlay).observe(root,{attributes:true,attributeFilter:['class']});
+   syncManagementOverlay();
+@@ -88,6 +96,11 @@
+   const parseState = raw => { try { const s=typeof raw==='string'?JSON.parse(raw):raw; return s && typeof s==='object' ? s : {}; } catch(_e){ return {}; } };
+   const normalizeRows = rows => Array.isArray(rows) ? rows.slice(0,40).map(r=>({name:String(r?.name??''),preset:!!r?.preset})) : [];
+ 
++
++  if(IS_NATIVE_APP){
++    const updateNativeNetwork=()=>{const el=document.querySelector('.mg-native-status>span');if(!el)return;el.className=navigator.onLine?'online':'offline';el.innerHTML=`<i></i>${navigator.onLine?'מחובר':'לא מקוון'}`;};
++    window.addEventListener('online',updateNativeNetwork);window.addEventListener('offline',updateNativeNetwork);
++  }
+   function setSync(t){
+     syncStatus=t;
+     document.querySelectorAll('[data-sync-status]').forEach(e=>e.textContent=t);
+@@ -153,6 +166,7 @@
+     const {data,error}=await sb.from('module_permissions').select('audience_key,module_key,allowed').eq('business_id',profile.business_id);
+     if(error)return;
+     (data||[]).forEach(r=>modulePermissions.set(`${r.audience_key}|${r.module_key}`,!!r.allowed));
++    nativeCacheSet('modulePermissions',data||[]);
+   }
+ 
+   async function loadBusinessFeatures(featuresObject=null){
+@@ -161,6 +175,7 @@
+     if(businessFeatures.size)return;
+     const {data}=await sb.from('business_features').select('feature_key,enabled').eq('business_id',profile.business_id);
+     (data||[]).forEach(x=>businessFeatures.set(x.feature_key,!!x.enabled));
++    nativeCacheSet('businessFeatures',data||[]);
+   }
+ 
+   async function chooseBusinessForSession(){
+@@ -196,6 +211,11 @@
+     WHATSAPP_BUSINESS_NAME=business?.name||'הסופר';
+     try{localStorage.setItem(STORE_CODE_KEY,business?.store_code||'');}catch(_e){}
+     document.documentElement.style.setProperty('--tenant-accent',business?.accent_color||'#16a34a');
++    if(IS_NATIVE_APP){
++      const cf=nativeCacheGet('businessFeatures'),cp=nativeCacheGet('modulePermissions');
++      if(cf?.data?.length){businessFeatures=new Map(cf.data.map(x=>[x.feature_key,!!x.enabled]));}
++      if(cp?.data?.length){modulePermissions=new Map(cp.data.map(r=>[`${r.audience_key}|${r.module_key}`,!!r.allowed]));}
++    }
+     await loadBusinessFeatures(ctx?.features);
+     await loadModulePermissions();
+     if(canUseModule('inventory')){
+@@ -337,10 +357,16 @@
+     const side=document.getElementById('mgDesktopSidebar');
+     side?.querySelectorAll('[data-side-target]').forEach(b=>b.onclick=()=>openAppTarget(b.dataset.sideTarget));
+     const out=side?.querySelector('[data-side-logout]');if(out)out.onclick=logout;
+-    const quick=['shortages','suppliers','signage'].filter(canOpenAppTarget);
+-    for(const k of ['inventory','tasks','calculator'])if(quick.length<3&&canOpenAppTarget(k)&&!quick.includes(k))quick.push(k);
+     const labels=moduleLabelMap();
+-    const bottom=[{key:'home',label:'בית',icon:'⌂'},...quick.map(k=>({key:k,...labels.get(k)})),{key:'more',label:'עוד',icon:'•••'}];
++    let bottom;
++    if(IS_NATIVE_APP){
++      const nativeTabs=['inventory','tasks','suppliers'].filter(canOpenAppTarget);
++      bottom=[{key:'home',label:'בית',icon:'⌂'},...nativeTabs.map(k=>({key:k,...labels.get(k)})),{key:'more',label:'עוד',icon:'•••'}];
++    }else{
++      const quick=['shortages','suppliers','signage'].filter(canOpenAppTarget);
++      for(const k of ['inventory','tasks','calculator'])if(quick.length<3&&canOpenAppTarget(k)&&!quick.includes(k))quick.push(k);
++      bottom=[{key:'home',label:'בית',icon:'⌂'},...quick.map(k=>({key:k,...labels.get(k)})),{key:'more',label:'עוד',icon:'•••'}];
++    }
+     document.body.insertAdjacentHTML('beforeend',`<nav id="mgGlobalBottomNav" class="mg-bottom-nav mg-bottom-nav-v24" style="--mg-nav-count:${bottom.length}" aria-label="ניווט ראשי">${bottom.map(x=>`<button data-app-target="${x.key}" class="${active===x.key||((x.key==='more')&&!['home',...quick].includes(active))?'active':''}"><span>${x.icon}</span><b>${esc(x.label)}</b>${x.key==='more'?'<i data-notification-badge hidden>0</i>':''}</button>`).join('')}</nav>`);
+     const nav=document.getElementById('mgGlobalBottomNav');
+     nav.querySelectorAll('[data-app-target]').forEach(b=>b.onclick=()=>b.dataset.appTarget==='more'?mobileMoreSheet(active):openAppTarget(b.dataset.appTarget));
+@@ -370,7 +396,39 @@
+     document.addEventListener('focusout',()=>setTimeout(apply,80),true);
+   }
+ 
++  function nativeTapFeedback(){
++    if(!IS_NATIVE_APP)return;
++    try{navigator.vibrate?.(8);}catch(_e){}
++  }
++  function renderNativeDashboard(){
++    const legacyApp=document.getElementById('app');if(legacyApp)legacyApp.style.display='none';
++    root.classList.remove('hidden');
++    root.dataset.activeModule='home';
++    const name=profile?.full_name||profile?.email||session?.user?.email||'משתמש';
++    const firstName=String(name).trim().split(/\s+/)[0]||name;
++    const todayLabel=new Intl.DateTimeFormat('he-IL',{weekday:'long',day:'numeric',month:'long'}).format(new Date());
++    const actions=[
++      canUseModule('shortages')?['shortages','📋','חוסרים','רשימה חדשה / טיפול']:null,
++      canUseModule('suppliers')?['suppliers','📦','ספקים','הכנת הזמנה']:null,
++      canUseModule('inventory')?['inventory','🥦','מלאי','ספירה יומית']:null,
++      canUseModule('tasks')?['tasks','✅','משימות','מה צריך לעשות']:null
++    ].filter(Boolean);
++    const tools=[
++      canUseModule('signage')?['signage','🖨️','שילוט']:null,
++      canUseModule('calculator')?['calculator','🧮','מחשבון']:null,
++      canUseModule('history')?['history','🗓️','היסטוריה']:null,
++      isManagement()?['catalog','🛒','קטלוג לקוחות']:null,
++      isPlatformAdminFlag?['developer','🧩','סופרים']:null
++    ].filter(Boolean);
++    root.innerHTML=`<div class="mg-native-shell"><header class="mg-native-home-header"><div class="mg-native-store"><span class="mg-native-store-logo">${business?.logo_url?`<img src="${esc(business.logo_url)}" alt="">`:'🏪'}</span><div><small>${esc(business?.name||BUSINESS_NAME)}</small><h1>היי ${esc(firstName)}</h1></div></div><div class="mg-native-head-actions"><button data-notifications aria-label="התראות">🔔<i data-notification-badge hidden>0</i></button><button id="mgNativeProfile" class="mg-native-avatar">${esc(initials(name))}</button></div></header><main class="mg-native-main"><section class="mg-native-status"><div><small>${esc(todayLabel)}</small><b data-sync-status>${esc(syncStatus)}</b></div><span class="${navigator.onLine?'online':'offline'}"><i></i>${navigator.onLine?'מחובר':'לא מקוון'}</span></section><section class="mg-native-kpis" id="mgDashboardPulse"><div class="mg-native-kpi-skeleton"></div><div class="mg-native-kpi-skeleton"></div></section><section class="mg-native-section"><div class="mg-native-section-title"><div><small>פעולות מהירות</small><h2>מה עושים עכשיו?</h2></div></div><div class="mg-native-actions">${actions.map((a,i)=>`<button data-native-target="${a[0]}" style="--i:${i}"><span>${a[1]}</span><div><b>${esc(a[2])}</b><small>${esc(a[3])}</small></div><i>‹</i></button>`).join('')}</div></section>${tools.length?`<section class="mg-native-section"><div class="mg-native-section-title"><div><small>כלים</small><h2>עוד במערכת</h2></div></div><div class="mg-native-tools">${tools.map(t=>`<button data-native-target="${t[0]}"><span>${t[1]}</span><b>${esc(t[2])}</b></button>`).join('')}</div></section>`:''}<section class="mg-native-foot"><span>Supermarket OS</span><b>V${APP_VERSION}</b></section></main></div>`;
++    document.querySelectorAll('[data-native-target]').forEach(b=>b.onclick=()=>{nativeTapFeedback();openAppTarget(b.dataset.nativeTarget);});
++    document.getElementById('mgNativeProfile').onclick=()=>openAppTarget('profile');
++    bindNotificationBell();mountAppNav('home');hydrateDashboardPulse();
++    if(canUseModule('suppliers'))scheduleSupplierReminderCheck();else{clearInterval(supplierReminderTimer);supplierReminderTimer=null;}
++  }
++
+   function renderDashboard(){
++    if(IS_NATIVE_APP)return renderNativeDashboard();
+     root.classList.remove('hidden');
+     root.dataset.activeModule='home';
+     const name=profile?.full_name||profile?.email||session?.user?.email||'משתמש';
+@@ -432,6 +490,11 @@
+ 
+   async function hydrateDashboardPulse(){
+     const box=document.getElementById('mgDashboardPulse');if(!box||!profile?.business_id)return;
++    const cached=nativeCacheGet('dashboardPulse');
++    if(IS_NATIVE_APP&&cached?.data?.length){
++      box.innerHTML=cached.data.map(c=>`<button class="mg-native-kpi" data-pulse-target="${c[3]}"><span>${c[0]}</span><div><b>${Number(c[1]||0).toLocaleString('he-IL')}</b><small>${esc(c[2])}</small></div></button>`).join('');
++      box.querySelectorAll('[data-pulse-target]').forEach(b=>b.onclick=()=>openAppTarget(b.dataset.pulseTarget));
++    }
+     const start=new Date();start.setHours(0,0,0,0);const iso=start.toISOString();
+     const safe=async(p)=>{try{return await p;}catch(_){return {count:0,data:[]};}};
+     const [orders,tasks,products,promos]=await Promise.all([
+@@ -446,7 +509,8 @@
+       ['🧺',Number(products.count||0),'מוצרים באתר','catalog'],
+       ['🔥',Number(promos.count||0),'מבצעים מוגדרים','catalog']
+     ];
+-    box.innerHTML=cards.map((c,i)=>`<button class="mg-pulse-card" data-pulse-target="${c[3]}" style="--i:${i}"><span>${c[0]}</span><div><b>${c[1].toLocaleString('he-IL')}</b><small>${c[2]}</small></div><i>←</i></button>`).join('');
++    nativeCacheSet('dashboardPulse',cards);
++    box.innerHTML=IS_NATIVE_APP?cards.map((c,i)=>`<button class="mg-native-kpi" data-pulse-target="${c[3]}" style="--i:${i}"><span>${c[0]}</span><div><b>${c[1].toLocaleString('he-IL')}</b><small>${esc(c[2])}</small></div></button>`).join(''):cards.map((c,i)=>`<button class="mg-pulse-card" data-pulse-target="${c[3]}" style="--i:${i}"><span>${c[0]}</span><div><b>${c[1].toLocaleString('he-IL')}</b><small>${c[2]}</small></div><i>←</i></button>`).join('');
+     box.querySelectorAll('[data-pulse-target]').forEach(b=>b.onclick=()=>openAppTarget(b.dataset.pulseTarget));
+   }
+ 
+@@ -468,7 +532,7 @@
+   }
+   function shellHeader(title,icon='🥬'){
+     root.dataset.activeModule=activeModuleFromTitle(title);
+-    return `<div class="mg-shell"><header class="mg-top mg-top-page"><div class="mg-top-in"><div class="mg-brand"><div class="mg-brand-mark">🏪</div><div><strong>${esc(APP_NAME)}</strong><span>${esc(business?.name||BUSINESS_NAME)}</span></div></div><div class="mg-page-top-actions"><button class="mg-notify-btn" data-notifications type="button" aria-label="התראות">🔔<span data-notification-badge hidden>0</span></button></div></div></header><main class="mg-main mg-page-main"><div class="mg-panel-head"><button id="mgPageBack" class="mg-back" aria-label="חזרה"><span>→</span><b>חזרה</b></button><div class="mg-page-title"><span>${icon}</span><div><small>אחים דוד יקנעם</small><h2>${esc(title)}</h2></div></div></div>`;
++    return `<div class="mg-shell"><header class="mg-top mg-top-page"><div class="mg-top-in"><div class="mg-brand"><div class="mg-brand-mark">🏪</div><div><strong>${esc(APP_NAME)}</strong><span>${esc(business?.name||BUSINESS_NAME)}</span></div></div><div class="mg-page-top-actions"><button class="mg-notify-btn" data-notifications type="button" aria-label="התראות">🔔<span data-notification-badge hidden>0</span></button></div></div></header><main class="mg-main mg-page-main"><div class="mg-panel-head"><button id="mgPageBack" class="mg-back" aria-label="חזרה"><span>→</span><b>חזרה</b></button><div class="mg-page-title"><span>${icon}</span><div><small>${esc(business?.name||BUSINESS_NAME)}</small><h2>${esc(title)}</h2></div></div></div>`;
+   }
+   function bindBack(){ const b=document.getElementById('mgPageBack'); if(b)b.onclick=renderDashboard; bindNotificationBell(); mountAppNav(root.dataset.activeModule||''); }
+ 
+@@ -2175,6 +2239,7 @@
+   function openInventory(){
+     if(!requireModule('inventory'))return;
+     removeAppNav();
++    if(IS_NATIVE_APP){try{window.__ensureInventoryRendered?.();}catch(_e){} const legacyApp=document.getElementById('app');if(legacyApp)legacyApp.style.display='block';}
+     root.classList.add('hidden'); applyRoleToInventory();
+     let strip=document.querySelector('.inventory-management-strip');
+     if(!strip){ strip=document.createElement('div'); strip.className='inventory-management-strip'; strip.innerHTML='<button id="mgBackDashboard">← ניהול הסופר</button><span data-sync-status></span>'; document.querySelector('.brand')?.appendChild(strip); }
