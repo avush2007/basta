@@ -5,6 +5,7 @@ on:
     branches: [ v3-supermarket-platform ]
     paths:
       - 'app-source.zip'
+      - 'v3-build-trigger.txt'
   workflow_dispatch:
 
 jobs:
@@ -17,6 +18,14 @@ jobs:
           rm -rf app
           mkdir app
           unzip -q app-source.zip -d app
+      - name: Apply V3.1 native mobile patches
+        run: |
+          for p in patches/v3.1/*.patch; do
+            echo "Applying $p"
+            patch -p1 -d app < "$p"
+          done
+          grep -q '"version": "3.1.0"' app/package.json
+          node --check app/www/management.js
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -39,6 +48,6 @@ jobs:
         run: ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: supermarket-os-v3-android-apk
+          name: supermarket-os-v3.1-android-apk
           path: app/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
