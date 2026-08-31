@@ -1,0 +1,12 @@
+--- a/www/management.js
++++ b/www/management.js
+@@ -367,7 +367,8 @@
+       for(const k of ['inventory','tasks','calculator'])if(quick.length<3&&canOpenAppTarget(k)&&!quick.includes(k))quick.push(k);
+       bottom=[{key:'home',label:'בית',icon:'⌂'},...quick.map(k=>({key:k,...labels.get(k)})),{key:'more',label:'עוד',icon:'•••'}];
+     }
+-    document.body.insertAdjacentHTML('beforeend',`<nav id="mgGlobalBottomNav" class="mg-bottom-nav mg-bottom-nav-v24" style="--mg-nav-count:${bottom.length}" aria-label="ניווט ראשי">${bottom.map(x=>`<button data-app-target="${x.key}" class="${active===x.key||((x.key==='more')&&!['home',...quick].includes(active))?'active':''}"><span>${x.icon}</span><b>${esc(x.label)}</b>${x.key==='more'?'<i data-notification-badge hidden>0</i>':''}</button>`).join('')}</nav>`);
++    const visibleBottomKeys=bottom.filter(x=>x.key!=='more').map(x=>x.key);
++    document.body.insertAdjacentHTML('beforeend',`<nav id="mgGlobalBottomNav" class="mg-bottom-nav mg-bottom-nav-v24" style="--mg-nav-count:${bottom.length}" aria-label="ניווט ראשי">${bottom.map(x=>`<button data-app-target="${x.key}" class="${active===x.key||((x.key==='more')&&!visibleBottomKeys.includes(active))?'active':''}"><span>${x.icon}</span><b>${esc(x.label)}</b>${x.key==='more'?'<i data-notification-badge hidden>0</i>':''}</button>`).join('')}</nav>`);
+     const nav=document.getElementById('mgGlobalBottomNav');
+     nav.querySelectorAll('[data-app-target]').forEach(b=>b.onclick=()=>b.dataset.appTarget==='more'?mobileMoreSheet(active):openAppTarget(b.dataset.appTarget));
+     refreshUnreadCount().catch(()=>{});
