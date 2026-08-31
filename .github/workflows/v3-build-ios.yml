@@ -1,0 +1,42 @@
+name: V3 Build iOS Xcode Project
+
+on:
+  push:
+    branches: [ v3-supermarket-platform ]
+    paths:
+      - 'app-source.zip'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract V3 source
+        run: |
+          rm -rf app
+          mkdir app
+          unzip -q app-source.zip -d app
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        working-directory: app
+        run: npm install
+      - name: Create iOS project
+        working-directory: app
+        run: npx cap add ios
+      - name: Sync iOS
+        working-directory: app
+        run: npx cap sync ios
+      - name: Verify Xcode project
+        working-directory: app
+        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -showBuildSettings > /tmp/xcode-settings.txt
+      - name: Package iOS project
+        working-directory: app
+        run: ditto -c -k --sequesterRsrc --keepParent ios ../supermarket-os-v3-ios-project.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supermarket-os-v3-ios-xcode-project
+          path: supermarket-os-v3-ios-project.zip
+          retention-days: 30
